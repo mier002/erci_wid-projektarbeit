@@ -1,70 +1,142 @@
 import { useState, useEffect } from "react";
-import Button from "@mui/material/Button";
 import Box from "@mui/material/Box";
+import Button from "@mui/material/Button";
+import FormControl from "@mui/material/FormControl";
+import InputLabel from "@mui/material/InputLabel";
+import Select from "@mui/material/Select";
+import MenuItem from "@mui/material/MenuItem";
+import { VegaLite } from "react-vega";
+import axios from "axios";
 
 export default function App() {
-  const [locations, setLocations] = useState({});
-  const [selectedData, setSelectedData] = useState(null);
+  const [data, setData] = useState([]);
+  const [filteredData, setFilteredData] = useState([]);
+  const [selectedLocation, setSelectedLocation] = useState("");
+  const [selectedOption, setSelectedOption] = useState("");
+  const [showChart, setShowChart] = useState(false);
+
+  const locations = [
+    "Rosengartenstrasse",
+    "Stampfenbachstrasse",
+    "Schimmelstrasse",
+    "Alle Strassen",
+  ];
 
   useEffect(() => {
-    // CSV-Datei manuell laden und verarbeiten
     const fetchData = async () => {
       try {
-        const response = await fetch("/meteodaten_2023_daily.csv");
-        const csvText = await response.text();
-
-        // CSV parsen
-        const lines = csvText.split("\n");
-        const headers = lines[0].split(","); // Erste Zeile als Header verwenden
-        const data = lines.slice(1).map((line) => {
-          const values = line.split(",");
-          return headers.reduce((acc, header, index) => {
-            acc[header.trim()] = values[index]?.trim();
-            return acc;
-          }, {});
-        });
-
-        // Daten nach Standort gruppieren
-        const groupedData = data.reduce((acc, item) => {
-          const location = item["Standort"]; // Ersetze "Standort" mit dem tatsächlichen Feldnamen
-          if (!acc[location]) {
-            acc[location] = [];
-          }
-          acc[location].push(item);
-          return acc;
-        }, {});
-
-        setLocations(groupedData);
+        const response = await axios.get("./data/meteodaten_2023_daily.json");
+        setData(response.data);
       } catch (error) {
-        console.error("Fehler beim Laden der CSV-Datei:", error);
+        console.error("Fehler beim Laden der JSON-Datei:", error);
       }
     };
 
     fetchData();
   }, []);
 
-  const handleShowData = () => {
-    // Daten für Zch_Rosengartenstrasse anzeigen
-    const data = locations["Zch_Rosengartenstrasse"];
-    setSelectedData(data || []);
+  const handleLocationChange = (event) => {
+    setSelectedLocation(event.target.value);
+  };
+
+  const handleOptionChange = (event) => {
+    setSelectedOption(event.target.value);
+  };
+
+  const handleShowChart = () => {
+    if (selectedLocation && selectedOption) {
+      const filtered =
+        selectedLocation === "Alle Strassen"
+          ? data.map((item) => ({
+              date: new Date(item.Datum).toISOString().split("T")[0],
+              value: item[selectedOption],
+            }))
+          : data
+              .filter((item) => item.Standort === `Zch_${selectedLocation}`)
+              .map((item) => ({
+                date: new Date(item.Datum).toISOString().split("T")[0],
+                value: item[selectedOption],
+              }));
+
+      setFilteredData(filtered);
+      setShowChart(true);
+    }
+  };
+
+  const handleReset = () => {
+    setSelectedLocation("");
+    setSelectedOption("");
+    setFilteredData([]);
+    setShowChart(false);
+  };
+
+  const chartSpec = {
+    $schema: "https://vega.github.io/schema/vega-lite/v5.json",
+    description: "Datenvisualisierung",
+    data: { values: filteredData },
+    mark: "line",
+    encoding: {
+      x: { field: "date", type: "temporal", title: "Datum" },
+      y: { field: "value", type: "quantitative", title: selectedOption },
+      color: { value: "steelblue" },
+    },
   };
 
   return (
     <Box sx={{ p: 4 }}>
-      <h1>Standortdaten</h1>
+      <h1>Auswahl und Visualisierung</h1>
+
+      {/* Standortauswahl */}
+      <FormControl fullWidth sx={{ mb: 2 }}>
+        <InputLabel id="location-label">Standort auswählen</InputLabel>
+        <Select
+          labelId="location-label"
+          id="location-select"
+          value={selectedLocation}
+          label="Standort auswählen"
+          onChange={handleLocationChange}
+        >
+          {locations.map((location, index) => (
+            <MenuItem key={index} value={location}>
+              {location}
+            </MenuItem>
+          ))}
+        </Select>
+      </FormControl>
+
+      {/* Optionsauswahl */}
+      <FormControl fullWidth sx={{ mb: 2 }}>
+        <InputLabel id="option-label">Option auswählen</InputLabel>
+        <Select
+          labelId="option-label"
+          id="option-select"
+          value={selectedOption}
+          label="Option auswählen"
+          onChange={handleOptionChange}
+        >
+          <MenuItem value="T">Temperatur</MenuItem>
+          <MenuItem value="RainDur">Niederschlag</MenuItem>
+        </Select>
+      </FormControl>
+
+      {/* Buttons */}
       <Button
         variant="contained"
-        color="primary"
-        onClick={handleShowData}
-        sx={{ mb: 2 }}
+        onClick={handleShowChart}
+        sx={{ mt: 2, mr: 2 }}
+        disabled={!selectedLocation || !selectedOption}
       >
-        Daten für Zch_Rosengartenstrasse anzeigen
+        Diagramm anzeigen
+      </Button>
+      <Button variant="contained" color="secondary" onClick={handleReset}>
+        Zurücksetzen
       </Button>
 
-      {selectedData && (
-        <Box>
-          <h2>Daten für Zch_Rosengartenstrasse:</h2>
-          <pre>{JSON.stringify(selectedData, null, 2)}</pre>
+      {/* Diagramm anzeigen */}
+      {showChart && filteredData.length > 0 && (
+        <Box sx={{ mt: 4 }}>
+          <h2>Diagramm</h2>
+          <VegaLite spec={chartSpec} />
         </Box>
       )}
     </Box>
