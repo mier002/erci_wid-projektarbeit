@@ -2,10 +2,11 @@ from fastapi import FastAPI
 import json
 from pathlib import Path
 
-### Create FastAPI instance with custom docs and openapi url
+# FastAPI-Instanz erstellen
 app = FastAPI(docs_url="/api/py/docs", openapi_url="/api/py/openapi.json")
 
-JSON_FILE_PATH = Path("/pages/data/meteodaten_2023_daily.json")
+# Absoluter Pfad zur JSON-Datei
+JSON_FILE_PATH = Path(__file__).resolve().parent.parent / "pages" / "data" / "meteodaten_2023_daily.json"
 
 @app.get("/api/py/meteodaten")
 def get_meteodaten():
@@ -15,6 +16,6 @@ def get_meteodaten():
             data = json.load(file)
         return data
     except FileNotFoundError:
-        return {"error": "JSON file not found. Please check the path and filename."}
+        return {"error": f"JSON file not found at {JSON_FILE_PATH}"}
     except json.JSONDecodeError:
         return {"error": "Invalid JSON format. Please check the file content."}
