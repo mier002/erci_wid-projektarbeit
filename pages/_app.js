@@ -15,18 +15,21 @@ export default function App() {
   const [selectedOption, setSelectedOption] = useState("");
   const [showChart, setShowChart] = useState(false);
 
-  const locations = [
-    "Rosengartenstrasse",
-    "Stampfenbachstrasse",
-    "Schimmelstrasse",
-    "Alle Strassen",
-  ];
+  const locations = ["Rosengartenstrasse", "Stampfenbachstrasse", "Schimmelstrasse"];
 
   useEffect(() => {
     const fetchData = async () => {
       try {
-        const response = await axios.get("./data/meteodaten_2023_daily.json");
-        setData(response.data);
+        const response = await axios.get("/api/py/meteodaten");
+        const rawData = response.data;
+
+        // UNIX-Timestamps in lesbare Datumswerte umwandeln
+        const formattedData = rawData.map((item) => ({
+          ...item,
+          Datum: new Date(item.Datum).toISOString().split("T")[0], // Umwandlung
+        }));
+
+        setData(formattedData);
       } catch (error) {
         console.error("Fehler beim Laden der JSON-Datei:", error);
       }
@@ -45,18 +48,13 @@ export default function App() {
 
   const handleShowChart = () => {
     if (selectedLocation && selectedOption) {
-      const filtered =
-        selectedLocation === "Alle Strassen"
-          ? data.map((item) => ({
-              date: new Date(item.Datum).toISOString().split("T")[0],
-              value: item[selectedOption],
-            }))
-          : data
-              .filter((item) => item.Standort === `Zch_${selectedLocation}`)
-              .map((item) => ({
-                date: new Date(item.Datum).toISOString().split("T")[0],
-                value: item[selectedOption],
-              }));
+      const filtered = data
+        .filter((item) => item.Standort === `Zch_${selectedLocation}`)
+        .map((item) => ({
+          date: item.Datum, // Bereits umgewandeltes Datum nutzen
+          value: item[selectedOption],
+          street: selectedLocation,
+        }));
 
       setFilteredData(filtered);
       setShowChart(true);
@@ -78,7 +76,7 @@ export default function App() {
     encoding: {
       x: { field: "date", type: "temporal", title: "Datum" },
       y: { field: "value", type: "quantitative", title: selectedOption },
-      color: { value: "steelblue" },
+      color: { field: "street", type: "nominal", title: "Standort" },
     },
   };
 
