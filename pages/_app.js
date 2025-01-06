@@ -116,11 +116,7 @@ export default function App() {
       </Box>
 
       {/* Diagramm anzeigen */}
-      {showChart && filteredData.length > 0 ? (
-        <VegaLite spec={chartSpec} />
-      ) : (
-        <p>Wählen Sie einen Standort und eine Option aus, und klicken Sie auf "Diagramm anzeigen".</p>
-      )}
+      {showChart && filteredData.length > 0 && <VegaLite spec={chartSpec} />}
     </Box>
   );
 }
