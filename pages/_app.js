@@ -1,10 +1,10 @@
 import { useState, useEffect } from "react";
 import Box from "@mui/material/Box";
-import Button from "@mui/material/Button";
 import FormControl from "@mui/material/FormControl";
 import InputLabel from "@mui/material/InputLabel";
 import Select from "@mui/material/Select";
 import MenuItem from "@mui/material/MenuItem";
+import Button from "@mui/material/Button";
 import { VegaLite } from "react-vega";
 import axios from "axios";
 
@@ -15,23 +15,13 @@ export default function App() {
   const [selectedOption, setSelectedOption] = useState("");
   const [showChart, setShowChart] = useState(false);
 
-  const locations = ["Rosengartenstrasse", "Stampfenbachstrasse", "Schimmelstrasse"];
-
   useEffect(() => {
     const fetchData = async () => {
       try {
         const response = await axios.get("/api/py/meteodaten");
-        const rawData = response.data;
-
-        // UNIX-Timestamps in lesbare Datumswerte umwandeln
-        const formattedData = rawData.map((item) => ({
-          ...item,
-          Datum: new Date(item.Datum).toISOString().split("T")[0], // Umwandlung
-        }));
-
-        setData(formattedData);
+        setData(response.data); // Gesamten Datensatz speichern
       } catch (error) {
-        console.error("Fehler beim Laden der JSON-Datei:", error);
+        console.error("Fehler beim Laden der JSON-Daten:", error);
       }
     };
 
@@ -39,103 +29,97 @@ export default function App() {
   }, []);
 
   const handleLocationChange = (event) => {
-    setSelectedLocation(event.target.value);
+    const location = event.target.value;
+    setSelectedLocation(location);
   };
 
   const handleOptionChange = (event) => {
-    setSelectedOption(event.target.value);
+    const option = event.target.value;
+    setSelectedOption(option);
   };
 
   const handleShowChart = () => {
     if (selectedLocation && selectedOption) {
-      const filtered = data
-        .filter((item) => item.Standort === `Zch_${selectedLocation}`)
-        .map((item) => ({
-          date: item.Datum, // Bereits umgewandeltes Datum nutzen
-          value: item[selectedOption],
-          street: selectedLocation,
-        }));
-
-      setFilteredData(filtered);
-      setShowChart(true);
+      const locationData = data.filter((item) => item.Standort === selectedLocation);
+      const mappedData = locationData.map((item) => ({
+        date: new Date(item.Datum).toISOString().split("T")[0], // Formatierte X-Achse
+        value: item[selectedOption], // Dynamisch Regendaten oder Temperatur auswählen
+      }));
+      setFilteredData(mappedData);
+      setShowChart(true); // Diagramm anzeigen
+    } else {
+      setShowChart(false); // Diagramm nicht anzeigen, falls unvollständige Auswahl
     }
   };
 
   const handleReset = () => {
-    setSelectedLocation("");
-    setSelectedOption("");
-    setFilteredData([]);
-    setShowChart(false);
+    setSelectedLocation(""); // Standortauswahl zurücksetzen
+    setSelectedOption(""); // Optionsauswahl zurücksetzen
+    setFilteredData([]); // Gefilterte Daten löschen
+    setShowChart(false); // Diagramm ausblenden
   };
 
   const chartSpec = {
     $schema: "https://vega.github.io/schema/vega-lite/v5.json",
-    description: "Datenvisualisierung",
+    description: "Gefilterte Daten im Diagramm",
     data: { values: filteredData },
     mark: "line",
     encoding: {
-      x: { field: "date", type: "temporal", title: "Datum" },
-      y: { field: "value", type: "quantitative", title: selectedOption },
-      color: { field: "street", type: "nominal", title: "Standort" },
+      x: { field: "date", type: "temporal", title: "Datum" }, // X-Achse: Datum
+      y: { field: "value", type: "quantitative", title: selectedOption === "T" ? "Temperatur (°C)" : "Regendauer (min)" }, // Y-Achse: Dynamisch
     },
   };
 
   return (
     <Box sx={{ p: 4 }}>
-      <h1>Auswahl und Visualisierung</h1>
+      <h1>Gefilterte Daten nach Standort und Option</h1>
 
-      {/* Standortauswahl */}
-      <FormControl fullWidth sx={{ mb: 2 }}>
-        <InputLabel id="location-label">Standort auswählen</InputLabel>
+      {/* Selector für Standort */}
+      <FormControl fullWidth sx={{ mb: 4 }}>
+        <InputLabel id="location-select-label">Standort auswählen</InputLabel>
         <Select
-          labelId="location-label"
+          labelId="location-select-label"
           id="location-select"
           value={selectedLocation}
           label="Standort auswählen"
           onChange={handleLocationChange}
         >
-          {locations.map((location, index) => (
-            <MenuItem key={index} value={location}>
-              {location}
-            </MenuItem>
-          ))}
+          <MenuItem value={"Zch_Rosengartenstrasse"}>Rosengartenstrasse</MenuItem>
+          <MenuItem value={"Zch_Schimmelstrasse"}>Schimmelstrasse</MenuItem>
+          <MenuItem value={"Zch_Stampfenbachstrasse"}>Stampfenbachstrasse</MenuItem>
         </Select>
       </FormControl>
 
-      {/* Optionsauswahl */}
-      <FormControl fullWidth sx={{ mb: 2 }}>
-        <InputLabel id="option-label">Option auswählen</InputLabel>
+      {/* Selector für Option */}
+      <FormControl fullWidth sx={{ mb: 4 }}>
+        <InputLabel id="option-select-label">Option auswählen</InputLabel>
         <Select
-          labelId="option-label"
+          labelId="option-select-label"
           id="option-select"
           value={selectedOption}
           label="Option auswählen"
           onChange={handleOptionChange}
         >
-          <MenuItem value="T">Temperatur</MenuItem>
-          <MenuItem value="RainDur">Niederschlag</MenuItem>
+          <MenuItem value={"T"}>Temperatur</MenuItem>
+          <MenuItem value={"RainDur"}>Regendauer</MenuItem>
         </Select>
       </FormControl>
 
       {/* Buttons */}
-      <Button
-        variant="contained"
-        onClick={handleShowChart}
-        sx={{ mt: 2, mr: 2 }}
-        disabled={!selectedLocation || !selectedOption}
-      >
-        Diagramm anzeigen
-      </Button>
-      <Button variant="contained" color="secondary" onClick={handleReset}>
-        Zurücksetzen
-      </Button>
+      <Box sx={{ display: "flex", gap: 2, mb: 4 }}>
+        <Button variant="contained" onClick={handleShowChart}>
+          Diagramm anzeigen
+        </Button>
+        <Button variant="contained" onClick={handleReset} color="secondary">
+          Zurücksetzen
+        </Button>
+      </Box>
 
       {/* Diagramm anzeigen */}
-      {showChart && filteredData.length > 0 && (
-        <Box sx={{ mt: 4 }}>
-          <h2>Diagramm</h2>
-          <VegaLite spec={chartSpec} />
-        </Box>
+      {showChart && filteredData.length > 0 ? (
+        <VegaLite spec={chartSpec} />
+      ) : (
+        <p>Wählen Sie einen Standort und eine Option aus, und klicken Sie auf "Diagramm anzeigen".</p>
       )}
     </Box>
   );
